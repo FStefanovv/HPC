@@ -7,6 +7,7 @@ void producer(MPI_Comm producer_comm){
     Message mess;
 
     while(sent!=10) {
+        //simulacija neaktivnosti producera (brokeru se ne salju nikakve poruke)
         if(sent==5){
             sleep(5);
         }

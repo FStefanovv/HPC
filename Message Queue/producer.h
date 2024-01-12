@@ -8,7 +8,6 @@
 #include "stdlib.h"
 #include <unistd.h>
 
-
 void producer(MPI_Comm producer_comm);
 
 #endif

@@ -16,11 +16,12 @@ void broker(MPI_Comm producer_comm, MPI_Comm first_comm, MPI_Comm second_comm){
         first_topic_consumers[i] = new_consumer();
     }
 
+
+    //isto, samo za drugi topic
     int second_topic_consumer_num;
     MPI_Comm_size(second_comm, &second_topic_consumer_num);
     second_topic_consumer_num--;
 
-    //postavljanje offset-a za svakog consumer-a na 0 - metoda new_consumer()
     Consumer second_topic_consumers[second_topic_consumer_num];
     for(int i=0; i<second_topic_consumer_num; i++) {
         second_topic_consumers[i] = new_consumer();
@@ -48,12 +49,11 @@ void broker(MPI_Comm producer_comm, MPI_Comm first_comm, MPI_Comm second_comm){
             }
         }
 
-        //nit koja pravi task-ove za svakog consumer-a u okviru prvog topic-a
-        #pragma omp single
+        //nit koja pravi task-ove za svakog consumer-a u okviru prvog topic-a. Svaki task
+        //sastoji se iz beskonacne petlje koja pokusava da posalje poruke na osnovu
+        //trenutnog offset-a, sve dok se ne posalju sve poruke svakom consumer-u (5 poruka za svaki topic)
+        #pragma omp single nowait
         {
-            int id;
-            MPI_Comm_rank(first_comm, &id);
-            //printf("I have the rank %d in first topic comm and i am the broker", id);
             for(int i=0; i<first_topic_consumer_num; i++) 
             {  
                 #pragma omp task 
@@ -76,20 +76,15 @@ void broker(MPI_Comm producer_comm, MPI_Comm first_comm, MPI_Comm second_comm){
                         
                         
                         if(first_topic_consumers[current].offset == 5){
-                            //printf("\nconsumer %d done", current+1);
                             break; 
-                        }
-                        
-                        
-                        
-                        //printf("\nafter second if block");
+                        }                                             
                     }  
                 }               
             }
         }
 
-
-        #pragma omp single
+        //isto, samo za drugi topic
+        #pragma omp single nowait
         {
             int id;
             MPI_Comm_rank(second_comm, &id);
@@ -97,11 +92,11 @@ void broker(MPI_Comm producer_comm, MPI_Comm first_comm, MPI_Comm second_comm){
             for(int i=0; i<second_topic_consumer_num; i++) 
             {  
                 #pragma omp task 
-                {
-                    int current = i;
+                {   
                     //printf("\nI am the task for consumer %d and my pid is %d", current, getpid());
                     //printf("\nsending sequentially, current consumer is %d", current);
                     //printf("\niteration %d of for loop getting executed by %d", current, omp_get_thread_num());
+                    int current = i;
                     while(1) {
                         int current_offset = second_topic_consumers[current].offset;
                         if(current_offset < second_topic->current){
@@ -112,14 +107,11 @@ void broker(MPI_Comm producer_comm, MPI_Comm first_comm, MPI_Comm second_comm){
                             second_topic_consumers[current].offset+=number_of_messages;
                             printf("\nsent %d messages to process %d, current_offset %d (second topic)", number_of_messages, current+1, second_topic_consumers[current].offset);   
                             free(to_send);
-                        }     
-                        
-                        
+                        }                      
                         if(second_topic_consumers[current].offset == 5){
                             //printf("\nconsumer %d done", current+1);
                             break; 
                         }                        
-                        //printf("\nafter second if block");
                     }  
                 }               
             }

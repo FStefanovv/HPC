@@ -56,21 +56,11 @@ int main(int argc, char **argv){
             }
         }
     }
-    /*
-    //consumer procesi za prvi topic
-    if(MPI_COMM_NULL != first_topic_comm && world_rank > 1){
-        consumer(first_topic_comm);
-    }
-    //consumer procesi za drugi topic
-    if(MPI_COMM_NULL != second_topic_comm && world_rank > 1){
-        consumer(second_topic_comm);
-    }
-    */
-    //broker proces - prima producer i komunikatore za sve topic-e 
+    //broker proces - prima poruke od producer-a i salje za sve topic-e consumer-ima 
     else if(world_rank==0){
         broker(producer_comm, first_topic_comm, second_topic_comm);
     }
-    //producer proces
+    //producer proces - salje 10 poruka, po 5 svakom topic-u, nakon cega prekida sa radom
     else if(world_rank==1){
         producer(producer_comm);
     }
