@@ -22,8 +22,10 @@ void consumer(MPI_Comm topic_comm, int topic) {
     //printf("rank %d in world, %d in first comm", world_rank, comm_rank);
   
     //simulacija neaktivnosti consumer-a u trenutku kada broker primi i pokusa da posalje poruku
-    if((comm_rank == 1 && topic==1) || (comm_rank == 2 && topic==2))
-        sleep(10);
+    if((comm_rank == 1 && topic==1))
+        sleep(15);
+    else if(comm_rank == 2 && topic==2)
+        sleep(25);
 
     //polling za dati topic, blokirajuce ceka poruke iz topic-a
     while(received<5) {
@@ -34,7 +36,7 @@ void consumer(MPI_Comm topic_comm, int topic) {
         free(messages);
         received+=size;
         if(received==5){
-            printf("\nprocess %d done for topic %d (%d in world comm) for the cycle 1\n", comm_rank, topic, world_rank);
+            printf("\nprocess %d done for topic %d\n", comm_rank, topic);
             break;
         }
     }
