@@ -20,7 +20,6 @@ int main(int argc, char **argv){
     int thread_support_mode;
     
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &thread_support_mode);
-    //printf("\nThread support level: %d\n\n", thread_support_mode);
     
     init_message_type();
     
@@ -29,7 +28,6 @@ int main(int argc, char **argv){
 
     MPI_Group world_group;
     MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-
 
     //komunikator u kom su samo producer i broker
     const int producer_group_ids[2] = {0, 1};
@@ -46,7 +44,7 @@ int main(int argc, char **argv){
     MPI_Comm_create_group(MPI_COMM_WORLD, first_topic_group, 0, &first_topic_comm);
 
     //consumer procesi za prvi topic
-    if(world_rank > 1 && first_topic_comm != MPI_COMM_NULL){
+    if(MPI_COMM_NULL != first_topic_comm && world_rank > 1){
         consumer(first_topic_comm);
     }
     //broker proces - prima producer i komunikatore za sve topic-e 
@@ -116,32 +114,40 @@ void broker(MPI_Comm producer_comm, MPI_Comm first_comm){
         //nit koja pravi task-ove za svakog consumer-a u okviru prvog topic-a
         #pragma omp single
         {
+            int id;
+            MPI_Comm_rank(first_comm, &id);
+            //printf("I have the rank %d in first topic comm and i am the broker", id);
             for(int i=0; i<first_topic_consumer_num; i++) 
             {  
                 #pragma omp task 
                 {
                     int current = i;
+                    //printf("\nsending sequentially, current consumer is %d", current);
                     //printf("\niteration %d of for loop getting executed by %d", current, omp_get_thread_num());
                     while(1) {
                         int current_offset = first_topic_consumers[current].offset;
                         if(current_offset < first_topic->current){
                             int number_of_messages;
                             Message *to_send = readMessages(current_offset, &number_of_messages, *first_topic);
-                            printf("\nhave %d messages to send to %d, current offset %d", number_of_messages, current+1, current_offset);
+                            printf("\nhave %d messages to send to process %d, current offset %d", number_of_messages, current+1, current_offset);
                             MPI_Send(to_send, number_of_messages, message_type, current+1, 0,  first_comm);   
                             first_topic_consumers[current].offset+=number_of_messages;
-                            printf("\nsent %d to %d, current_offset %d", number_of_messages, current+1, first_topic_consumers[current].offset);   
+                            printf("\nsent %d messages to process %d, current_offset %d", number_of_messages, current+1, first_topic_consumers[current].offset);   
                             free(to_send);
-                        }
+                            
+                        }     
+                        
                         if(first_topic_consumers[current].offset == 5){
-                            printf("\nconsumer %d done", current+1);
+                            //printf("\nconsumer %d done", current+1);
                             break; 
                         }
+                        
+                        
+                        //printf("\nafter second if block");
                     }  
                 }               
             }
         }
-        
     }
 }
 
@@ -150,17 +156,33 @@ void consumer(MPI_Comm topic_comm) {
     Message *messages;
     MPI_Status status;
 
+    int received = 0;
+
     MPI_Comm_rank(topic_comm, &rank);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
+    int id;
+    MPI_Comm_rank(topic_comm, &id);
+    //printf("rank %d in world, %d in first comm", world_rank, id);
+
+
     //polling za dati topic, blokirajuce ceka poruke iz topic-a
-    while(1) {
+    while(received<5) {
+
         MPI_Probe(0, 0, topic_comm, &status);
         MPI_Get_count(&status, message_type, &size);
         messages = (Message*) malloc(size * sizeof(Message));
         MPI_Recv(messages, size, message_type, 0, 0, topic_comm, MPI_STATUS_IGNORE);
         free(messages);
+        received+=size;
+        //printf("\nreceived %d messages", received);
+
+        if(received==5){
+            printf("\nreceived %d messages, breaking", received);
+            break;
+        }
     }
+    return;
 }
 
 
@@ -171,6 +193,8 @@ void producer(MPI_Comm producer_comm){
     Message mess;
 
     while(sent!=10) {
+        if(sent==5)
+            sleep(5);
         if(sent%2==0) {
             mess.topic = 0;
             strcpy(mess.content, "some random message in the first topic...");
@@ -183,6 +207,7 @@ void producer(MPI_Comm producer_comm){
         sent+=1;
     }
 
+    //printf("\nI am done sending");
     // stop signal broker-u za prijem poruka
     mess.topic = -1;
     MPI_Send(&mess, 1, message_type, 0, 0, producer_comm);
